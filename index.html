@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#12343e">
+  <meta name="description" content="Climb a 100-story tower. Work each plank. Save one pineapple in this 3D physics party game.">
+  <title>PineFull Tower</title>
+  <link rel="icon" href="pineapple.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="island.css">
+  <script src="config.js" defer></script>
+  <script src="links.js" defer></script>
+</head>
+<body>
+  <main aria-label="PineFull Tower">
+    <canvas id="unity-canvas" tabindex="0" aria-label="PineFull Tower game"></canvas>
+    <section id="loading" aria-label="Loading" aria-live="polite">
+      <div class="tides" aria-hidden="true"></div>
+      <div class="poster">
+        <img src="pineapple.svg" alt="" width="102" height="135">
+        <p class="island">PINEFULL BAY</p>
+        <h1>PineFull <span>TOWER</span></h1>
+        <div role="progressbar" aria-label="Island loading" aria-valuemax="100" aria-valuemin="0" aria-valuenow="0"><i></i></div>
+        <p id="status">Getting the island ready · 0%</p>
+        <button id="reload" hidden>Reload game</button>
+      </div>
+    </section>
+    <div id="rotate" role="status"><img src="pineapple.svg" alt=""><strong>Turn your device</strong><span>Play in landscape.</span></div>
+    <div id="toast" role="status"></div>
+  </main>
+  <script>
+    addEventListener('DOMContentLoaded', () => {
+      const canvas = document.querySelector('#unity-canvas');
+      const loading = document.querySelector('#loading');
+      const status = document.querySelector('#status');
+      const bar = document.querySelector('[role=progressbar]');
+      const progress = bar.firstElementChild;
+      const reload = document.querySelector('#reload');
+      const touch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1 &&
+        (/Android|iPhone|iPad|Mobile/.test(navigator.userAgent) || navigator.platform === 'MacIntel');
+      document.documentElement.classList.toggle('touch', touch);
+      window.pineTouch = touch;
+      const version = "0.1.2";
+      const build = 'Build';
+      const loaderUrl = build + '/601c54aaaa74d418f5d0cdc7e8e9cd1b.loader.js';
+      const config = {
+        dataUrl: build + '/8b460e817e6271e83adbb6dd51d5f1d2.data.unityweb',
+        frameworkUrl: build + '/14d5c2eb452667f6c953b96098cec98a.framework.js.unityweb',
+        codeUrl: build + '/5267d1e260e50ea06d3de2e4ef839dc1.wasm.unityweb',
+        streamingAssetsUrl: 'StreamingAssets',
+        companyName: "DefaultCompany",
+        productName: "PineFull Tower",
+        productVersion: version,
+        autoSyncPersistentDataPath: true,
+        devicePixelRatio: Math.min(devicePixelRatio || 1, touch ? 1.3 : 1.65),
+        webglContextAttributes: { alpha: false, powerPreference: touch ? 'low-power' : 'high-performance' },
+        showBanner(message, kind) {
+          if (kind === 'error') fail(message);
+          else if (kind === 'warning') window.pineToast(message);
+        }
+      };
+      function fail(message) {
+        status.textContent = message || 'The island could not be loaded.';
+        loading.hidden = false;
+        reload.hidden = false;
+      }
+      window.pineToast = text => {
+        const toast = document.querySelector('#toast');
+        toast.textContent = text;
+        toast.classList.add('visible');
+        clearTimeout(window.pineToastTimer);
+        window.pineToastTimer = setTimeout(() => toast.classList.remove('visible'), 3500);
+      };
+      reload.onclick = () => location.reload();
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+      canvas.addEventListener('webglcontextlost', e => {
+        e.preventDefault();
+        fail('The graphics context was interrupted. Reload to return to PineFull Bay.');
+      });
+      document.addEventListener('visibilitychange', () => window.PineLinks?.visibility(document.hidden));
+      document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+      const loader = document.createElement('script');
+      loader.src = loaderUrl;
+      loader.onerror = () => fail('The Unity loader could not be downloaded.');
+      const webFiles = [loaderUrl, config.dataUrl, config.frameworkUrl, config.codeUrl];
+      let readyTimer;
+      function enterIsland() {
+        clearTimeout(readyTimer);
+        loading.hidden = true;
+        canvas.focus({preventScroll:true});
+      }
+      window.addEventListener('pinefull-ready', enterIsland, { once:true });
+      loader.onload = () => {
+        createUnityInstance(canvas, config, amount => {
+          const percent = Math.round(amount * 100);
+          progress.style.width = percent + '%';
+          bar.setAttribute('aria-valuenow', percent);
+          status.textContent = 'Getting the island ready · ' + percent + '%';
+        }).then(instance => {
+          window.pineUnity = instance;
+          if (window.pineGameReady) enterIsland();
+          else {
+            status.textContent = 'Stepping onto the island…';
+            readyTimer = setTimeout(enterIsland, 3200);
+          }
+          if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+            navigator.serviceWorker.register('offline.js').then(() => navigator.serviceWorker.ready)
+              .then(reg => reg.active?.postMessage({ assets: webFiles, version }))
+              .catch(() => {});
+          }
+        }).catch(error => fail(String(error)));
+      };
+      document.body.appendChild(loader);
+    });
+  </script>
+</body>
+</html>
+
